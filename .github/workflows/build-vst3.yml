@@ -1,0 +1,40 @@
+name: Build Good Aura Voice MIDI
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main, master ]
+
+jobs:
+  mac:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure
+        run: |
+          cmake -S . -B build -G Xcode \
+            -DCMAKE_OSX_ARCHITECTURES="arm64;x86_64"
+
+      - name: Build VST3
+        run: cmake --build build --config Release --target GoodAuraVoiceMIDI_VST3 -j 3
+
+      - name: Ad-hoc sign
+        run: |
+          PLUGIN="$(find build -name 'Good Aura Voice MIDI.vst3' -type d | head -1)"
+          if [ -z "$PLUGIN" ]; then
+            echo "VST3 not found"
+            exit 1
+          fi
+          codesign --force --deep --sign - "$PLUGIN"
+          echo "PLUGIN=$PLUGIN" >> "$GITHUB_ENV"
+
+      - name: Package
+        run: |
+          mkdir -p artifact
+          cp -R "$PLUGIN" artifact/
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: GoodAuraVoiceMIDI-macOS-VST3
+          path: artifact
